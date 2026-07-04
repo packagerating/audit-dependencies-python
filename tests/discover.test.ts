@@ -78,6 +78,16 @@ describe('discoverPackages', () => {
     ])
   })
 
+  it('follows a --requirement=<path> include (equals-sign form)', () => {
+    write('requirements/base.txt', 'requests==2.31.0\n')
+    write('requirements.txt', '--requirement=requirements/base.txt\nlodash==4.17.21\n')
+    const result = discoverPackages(path.join(rootDir, 'requirements.txt'), [])
+    expect(result.sort((a, b) => a.name.localeCompare(b.name))).toEqual([
+      { name: 'lodash', version: '4.17.21' },
+      { name: 'requests', version: '2.31.0' },
+    ])
+  })
+
   it('skips other pip option flags', () => {
     write('requirements.txt', '-e .\n--index-url https://example.com/simple\nrequests==2.31.0\n')
     const result = discoverPackages(path.join(rootDir, 'requirements.txt'), [])
