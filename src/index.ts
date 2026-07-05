@@ -1,0 +1,77 @@
+import * as core from '@actions/core'
+import { discoverPackages } from './discover'
+import { scorePackages } from './score'
+import { writeJobSummary, upsertPrComment } from './report'
+import type { PackageScore, Thresholds } from './types'
+
+function parseThreshold(value: string): number | null {
+  if (!value.trim()) return null
+  const n = parseInt(value, 10)
+  if (isNaN(n) || n < 0 || n > 100) throw new Error(`Invalid threshold: "${value}" — must be 0–100`)
+  return n
+}
+
+export function checkThresholds(scores: PackageScore[], thresholds: Thresholds): string[] {
+  const failures: string[] = []
+  for (const pkg of scores.filter(s => s.status === 'scored')) {
+    const reasons: string[] = []
+    if (thresholds.general !== null && pkg.generalScore !== null && pkg.generalScore < thresholds.general) {
+      reasons.push(`general: ${pkg.generalScore} < ${thresholds.general}`)
+    }
+    if (thresholds.automation !== null && pkg.automationScore !== null && pkg.automationScore < thresholds.automation) {
+      reasons.push(`automation: ${pkg.automationScore} < ${thresholds.automation}`)
+    }
+    if (thresholds.risk !== null && pkg.riskScore !== null && pkg.riskScore > thresholds.risk) {
+      reasons.push(`risk: ${pkg.riskScore} > ${thresholds.risk}`)
+    }
+    if (reasons.length > 0) {
+      failures.push(`${pkg.name} (${reasons.join(', ')})`)
+    }
+  }
+  return failures
+}
+
+export async function run(): Promise<void> {
+  const thresholds: Thresholds = {
+    general: parseThreshold(core.getInput('fail-on-general')),
+    automation: parseThreshold(core.getInput('fail-on-automation')),
+    risk: parseThreshold(core.getInput('fail-on-risk')),
+  }
+
+  const explicitPackages = core.getInput('packages')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+
+  const packages = discoverPackages(
+    core.getInput('requirements-path') || 'requirements.txt',
+    explicitPackages,
+  )
+
+  core.info(`Scoring ${packages.length} package(s)...`)
+  const scores = await scorePackages(
+    packages,
+    core.getInput('api-key', { required: true }),
+    parseInt(core.getInput('crawl-timeout') || '120', 10),
+  )
+
+  await writeJobSummary(scores, thresholds)
+  if (core.getInput('pr-comment') !== 'false') {
+    await upsertPrComment(scores, thresholds, core.getInput('github-token'))
+  }
+
+  const scoredCount = scores.filter(s => s.status === 'scored').length
+  core.setOutput('packages-scored', String(scoredCount))
+
+  const failures = checkThresholds(scores, thresholds)
+  const belowThreshold = failures.map(f => f.split(' ')[0]!)
+  core.setOutput('packages-below-threshold', belowThreshold.join(','))
+
+  if (failures.length > 0) {
+    core.setFailed(`${failures.length} package(s) below threshold: ${failures.join('; ')}`)
+  }
+}
+
+if (require.main === module) {
+  run().catch(err => core.setFailed(err instanceof Error ? err.message : String(err)))
+}
