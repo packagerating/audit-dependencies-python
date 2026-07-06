@@ -121,4 +121,70 @@ describe('discoverPackages', () => {
   it('throws if requirements.txt is missing and no explicit packages are given', () => {
     expect(() => discoverPackages(path.join(rootDir, 'requirements.txt'), [])).toThrow()
   })
+
+  it('uses Poetry mode when poetry.lock exists, ignoring requirements.txt entirely', () => {
+    write('requirements.txt', 'this-should-be-ignored==9.9.9\n')
+    write(
+      'pyproject.toml',
+      `
+[tool.poetry.dependencies]
+python = "^3.10"
+requests = "^2.31.0"
+`,
+    )
+    write(
+      'poetry.lock',
+      `
+[[package]]
+name = "requests"
+version = "2.31.0"
+`,
+    )
+    const result = discoverPackages(path.join(rootDir, 'requirements.txt'), [])
+    expect(result).toEqual([{ name: 'requests', version: '2.31.0' }])
+  })
+
+  it('falls back to requirements.txt mode when poetry.lock does not exist', () => {
+    write('requirements.txt', 'requests==2.31.0\n')
+    const result = discoverPackages(path.join(rootDir, 'requirements.txt'), [])
+    expect(result).toEqual([{ name: 'requests', version: '2.31.0' }])
+  })
+
+  it('collects Poetry dependency names across the main table and a dev group', () => {
+    write(
+      'pyproject.toml',
+      `
+[tool.poetry.dependencies]
+python = "^3.10"
+requests = "^2.31.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0.0"
+`,
+    )
+    write(
+      'poetry.lock',
+      `
+[[package]]
+name = "requests"
+version = "2.31.0"
+
+[[package]]
+name = "pytest"
+version = "8.0.0"
+`,
+    )
+    const result = discoverPackages(path.join(rootDir, 'requirements.txt'), [])
+    expect(result.sort((a, b) => a.name.localeCompare(b.name))).toEqual([
+      { name: 'pytest', version: '8.0.0' },
+      { name: 'requests', version: '2.31.0' },
+    ])
+  })
+
+  it('still bypasses both requirements.txt and Poetry parsing when explicit packages are given', () => {
+    write('poetry.lock', '[[package]]\nname = "requests"\nversion = "2.31.0"\n')
+    write('pyproject.toml', '[tool.poetry.dependencies]\npython = "^3.10"\n')
+    const result = discoverPackages(path.join(rootDir, 'requirements.txt'), ['flask'])
+    expect(result).toEqual([{ name: 'flask', version: null }])
+  })
 })
