@@ -1,5 +1,6 @@
 import * as fs from 'fs'
 import * as path from 'path'
+import { collectPoetryDependencyNames, resolvePoetryVersions } from './lockfiles/poetry'
 
 export interface DiscoveredPackage {
   name: string
@@ -71,6 +72,17 @@ function parseFile(filePath: string, seen: Set<string>): DiscoveredPackage[] {
 export function discoverPackages(requirementsPath: string, explicitPackages: string[]): DiscoveredPackage[] {
   if (explicitPackages.length > 0) {
     return [...new Set(explicitPackages)].map(name => ({ name, version: null }))
+  }
+
+  const resolvedRequirementsPath = path.resolve(requirementsPath)
+  const dir = path.dirname(resolvedRequirementsPath)
+  const poetryLockPath = path.join(dir, 'poetry.lock')
+
+  if (fs.existsSync(poetryLockPath)) {
+    const pyprojectPath = path.join(dir, 'pyproject.toml')
+    const names = collectPoetryDependencyNames(fs.readFileSync(pyprojectPath, 'utf8'))
+    const versions = resolvePoetryVersions(fs.readFileSync(poetryLockPath, 'utf8'), names)
+    return names.map(name => ({ name, version: versions.get(name) ?? null }))
   }
 
   const all = parseFile(requirementsPath, new Set())
