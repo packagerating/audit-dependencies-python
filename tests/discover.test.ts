@@ -288,6 +288,35 @@ version = "2.31.0"
     expect(result).toEqual([{ name: 'flask', version: '3.0.0' }])
   })
 
+  it('prefers Poetry mode over uv mode when both poetry.lock and uv.lock exist', () => {
+    write(
+      'pyproject.toml',
+      `
+[tool.poetry.dependencies]
+python = "^3.10"
+flask = "^3.0.0"
+`,
+    )
+    write(
+      'poetry.lock',
+      `
+[[package]]
+name = "flask"
+version = "3.0.0"
+`,
+    )
+    write(
+      'uv.lock',
+      `
+[[package]]
+name = "requests"
+version = "2.31.0"
+`,
+    )
+    const result = discoverPackages(path.join(rootDir, 'requirements.txt'), [])
+    expect(result).toEqual([{ name: 'flask', version: '3.0.0' }])
+  })
+
   it('still bypasses requirements.txt, Poetry, Pipenv, and uv parsing when explicit packages are given', () => {
     write('Pipfile.lock', JSON.stringify({ default: { flask: { version: '==3.0.0' } } }))
     write('pyproject.toml', '[project]\ndependencies = ["requests>=2.31.0"]\n')
