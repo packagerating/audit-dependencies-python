@@ -2,6 +2,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { collectPoetryDependencyNames, resolvePoetryVersions } from './lockfiles/poetry'
 import { parsePipfileLock } from './lockfiles/pipenv'
+import { collectUvDependencyNames, resolveUvVersions } from './lockfiles/uv'
 
 export interface DiscoveredPackage {
   name: string
@@ -89,6 +90,14 @@ export function discoverPackages(requirementsPath: string, explicitPackages: str
   const pipfileLockPath = path.join(dir, 'Pipfile.lock')
   if (fs.existsSync(pipfileLockPath)) {
     return parsePipfileLock(fs.readFileSync(pipfileLockPath, 'utf8'))
+  }
+
+  const uvLockPath = path.join(dir, 'uv.lock')
+  if (fs.existsSync(uvLockPath)) {
+    const pyprojectPath = path.join(dir, 'pyproject.toml')
+    const names = collectUvDependencyNames(fs.readFileSync(pyprojectPath, 'utf8'))
+    const versions = resolveUvVersions(fs.readFileSync(uvLockPath, 'utf8'), names)
+    return names.map(name => ({ name, version: versions.get(name) ?? null }))
   }
 
   const all = parseFile(requirementsPath, new Set())
