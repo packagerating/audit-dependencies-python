@@ -324,4 +324,119 @@ version = "2.31.0"
     const result = discoverPackages(path.join(rootDir, 'requirements.txt'), ['django'])
     expect(result).toEqual([{ name: 'django', version: null }])
   })
+
+  it('uses PDM mode when pdm.lock exists, ignoring requirements.txt entirely', () => {
+    write('requirements.txt', 'this-should-be-ignored==9.9.9\n')
+    write(
+      'pyproject.toml',
+      `
+[project]
+dependencies = ["requests>=2.31.0"]
+`,
+    )
+    write(
+      'pdm.lock',
+      `
+[[package]]
+name = "requests"
+version = "2.31.0"
+`,
+    )
+    const result = discoverPackages(path.join(rootDir, 'requirements.txt'), [])
+    expect(result).toEqual([{ name: 'requests', version: '2.31.0' }])
+  })
+
+  it('prefers Poetry mode over PDM mode when both poetry.lock and pdm.lock exist', () => {
+    write(
+      'pyproject.toml',
+      `
+[tool.poetry.dependencies]
+python = "^3.10"
+flask = "^3.0.0"
+`,
+    )
+    write(
+      'poetry.lock',
+      `
+[[package]]
+name = "flask"
+version = "3.0.0"
+`,
+    )
+    write(
+      'pdm.lock',
+      `
+[[package]]
+name = "requests"
+version = "2.31.0"
+`,
+    )
+    const result = discoverPackages(path.join(rootDir, 'requirements.txt'), [])
+    expect(result).toEqual([{ name: 'flask', version: '3.0.0' }])
+  })
+
+  it('prefers Pipenv mode over PDM mode when both Pipfile.lock and pdm.lock exist', () => {
+    write(
+      'Pipfile.lock',
+      JSON.stringify({
+        default: {
+          flask: { hashes: ['sha256:abc'], version: '==3.0.0' },
+        },
+      }),
+    )
+    write(
+      'pyproject.toml',
+      `
+[project]
+dependencies = ["requests>=2.31.0"]
+`,
+    )
+    write(
+      'pdm.lock',
+      `
+[[package]]
+name = "requests"
+version = "2.31.0"
+`,
+    )
+    const result = discoverPackages(path.join(rootDir, 'requirements.txt'), [])
+    expect(result).toEqual([{ name: 'flask', version: '3.0.0' }])
+  })
+
+  it('prefers uv mode over PDM mode when both uv.lock and pdm.lock exist', () => {
+    write(
+      'pyproject.toml',
+      `
+[project]
+dependencies = ["flask>=3.0.0"]
+`,
+    )
+    write(
+      'uv.lock',
+      `
+[[package]]
+name = "flask"
+version = "3.0.0"
+`,
+    )
+    write(
+      'pdm.lock',
+      `
+[[package]]
+name = "requests"
+version = "2.31.0"
+`,
+    )
+    const result = discoverPackages(path.join(rootDir, 'requirements.txt'), [])
+    expect(result).toEqual([{ name: 'flask', version: '3.0.0' }])
+  })
+
+  it('still bypasses requirements.txt, Poetry, Pipenv, uv, and PDM parsing when explicit packages are given', () => {
+    write('Pipfile.lock', JSON.stringify({ default: { flask: { version: '==3.0.0' } } }))
+    write('pyproject.toml', '[project]\ndependencies = ["requests>=2.31.0"]\n')
+    write('uv.lock', '[[package]]\nname = "requests"\nversion = "2.31.0"\n')
+    write('pdm.lock', '[[package]]\nname = "requests"\nversion = "2.31.0"\n')
+    const result = discoverPackages(path.join(rootDir, 'requirements.txt'), ['django'])
+    expect(result).toEqual([{ name: 'django', version: null }])
+  })
 })

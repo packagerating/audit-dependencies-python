@@ -3,6 +3,7 @@ import * as path from 'path'
 import { collectPoetryDependencyNames, resolvePoetryVersions } from './lockfiles/poetry'
 import { parsePipfileLock } from './lockfiles/pipenv'
 import { collectUvDependencyNames, resolveUvVersions } from './lockfiles/uv'
+import { collectPdmDependencyNames, resolvePdmVersions } from './lockfiles/pdm'
 
 export interface DiscoveredPackage {
   name: string
@@ -97,6 +98,14 @@ export function discoverPackages(requirementsPath: string, explicitPackages: str
     const pyprojectPath = path.join(dir, 'pyproject.toml')
     const names = collectUvDependencyNames(fs.readFileSync(pyprojectPath, 'utf8'))
     const versions = resolveUvVersions(fs.readFileSync(uvLockPath, 'utf8'), names)
+    return names.map(name => ({ name, version: versions.get(name) ?? null }))
+  }
+
+  const pdmLockPath = path.join(dir, 'pdm.lock')
+  if (fs.existsSync(pdmLockPath)) {
+    const pyprojectPath = path.join(dir, 'pyproject.toml')
+    const names = collectPdmDependencyNames(fs.readFileSync(pyprojectPath, 'utf8'))
+    const versions = resolvePdmVersions(fs.readFileSync(pdmLockPath, 'utf8'), names)
     return names.map(name => ({ name, version: versions.get(name) ?? null }))
   }
 
