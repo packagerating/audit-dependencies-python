@@ -238,4 +238,90 @@ version = "3.0.0"
     const result = discoverPackages(path.join(rootDir, 'requirements.txt'), ['django'])
     expect(result).toEqual([{ name: 'django', version: null }])
   })
+
+  it('uses uv mode when uv.lock exists, ignoring requirements.txt entirely', () => {
+    write('requirements.txt', 'this-should-be-ignored==9.9.9\n')
+    write(
+      'pyproject.toml',
+      `
+[project]
+dependencies = ["requests>=2.31.0"]
+`,
+    )
+    write(
+      'uv.lock',
+      `
+[[package]]
+name = "requests"
+version = "2.31.0"
+`,
+    )
+    const result = discoverPackages(path.join(rootDir, 'requirements.txt'), [])
+    expect(result).toEqual([{ name: 'requests', version: '2.31.0' }])
+  })
+
+  it('prefers Pipenv mode over uv mode when both Pipfile.lock and uv.lock exist', () => {
+    write(
+      'Pipfile.lock',
+      JSON.stringify({
+        default: {
+          flask: { hashes: ['sha256:abc'], version: '==3.0.0' },
+        },
+      }),
+    )
+    write(
+      'pyproject.toml',
+      `
+[project]
+dependencies = ["requests>=2.31.0"]
+`,
+    )
+    write(
+      'uv.lock',
+      `
+[[package]]
+name = "requests"
+version = "2.31.0"
+`,
+    )
+    const result = discoverPackages(path.join(rootDir, 'requirements.txt'), [])
+    expect(result).toEqual([{ name: 'flask', version: '3.0.0' }])
+  })
+
+  it('prefers Poetry mode over uv mode when both poetry.lock and uv.lock exist', () => {
+    write(
+      'pyproject.toml',
+      `
+[tool.poetry.dependencies]
+python = "^3.10"
+flask = "^3.0.0"
+`,
+    )
+    write(
+      'poetry.lock',
+      `
+[[package]]
+name = "flask"
+version = "3.0.0"
+`,
+    )
+    write(
+      'uv.lock',
+      `
+[[package]]
+name = "requests"
+version = "2.31.0"
+`,
+    )
+    const result = discoverPackages(path.join(rootDir, 'requirements.txt'), [])
+    expect(result).toEqual([{ name: 'flask', version: '3.0.0' }])
+  })
+
+  it('still bypasses requirements.txt, Poetry, Pipenv, and uv parsing when explicit packages are given', () => {
+    write('Pipfile.lock', JSON.stringify({ default: { flask: { version: '==3.0.0' } } }))
+    write('pyproject.toml', '[project]\ndependencies = ["requests>=2.31.0"]\n')
+    write('uv.lock', '[[package]]\nname = "requests"\nversion = "2.31.0"\n')
+    const result = discoverPackages(path.join(rootDir, 'requirements.txt'), ['django'])
+    expect(result).toEqual([{ name: 'django', version: null }])
+  })
 })
