@@ -1,6 +1,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import { collectPoetryDependencyNames, resolvePoetryVersions } from './lockfiles/poetry'
+import { parsePipfileLock } from './lockfiles/pipenv'
 
 export interface DiscoveredPackage {
   name: string
@@ -83,6 +84,11 @@ export function discoverPackages(requirementsPath: string, explicitPackages: str
     const names = collectPoetryDependencyNames(fs.readFileSync(pyprojectPath, 'utf8'))
     const versions = resolvePoetryVersions(fs.readFileSync(poetryLockPath, 'utf8'), names)
     return names.map(name => ({ name, version: versions.get(name) ?? null }))
+  }
+
+  const pipfileLockPath = path.join(dir, 'Pipfile.lock')
+  if (fs.existsSync(pipfileLockPath)) {
+    return parsePipfileLock(fs.readFileSync(pipfileLockPath, 'utf8'))
   }
 
   const all = parseFile(requirementsPath, new Set())

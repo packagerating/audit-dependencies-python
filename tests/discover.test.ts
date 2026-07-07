@@ -187,4 +187,55 @@ version = "8.0.0"
     const result = discoverPackages(path.join(rootDir, 'requirements.txt'), ['flask'])
     expect(result).toEqual([{ name: 'flask', version: null }])
   })
+
+  it('uses Pipenv mode when Pipfile.lock exists, ignoring requirements.txt entirely', () => {
+    write('requirements.txt', 'this-should-be-ignored==9.9.9\n')
+    write(
+      'Pipfile.lock',
+      JSON.stringify({
+        default: {
+          requests: { hashes: ['sha256:abc'], version: '==2.31.0' },
+        },
+      }),
+    )
+    const result = discoverPackages(path.join(rootDir, 'requirements.txt'), [])
+    expect(result).toEqual([{ name: 'requests', version: '2.31.0' }])
+  })
+
+  it('prefers Poetry mode over Pipenv mode when both poetry.lock and Pipfile.lock exist', () => {
+    write(
+      'pyproject.toml',
+      `
+[tool.poetry.dependencies]
+python = "^3.10"
+flask = "^3.0.0"
+`,
+    )
+    write(
+      'poetry.lock',
+      `
+[[package]]
+name = "flask"
+version = "3.0.0"
+`,
+    )
+    write(
+      'Pipfile.lock',
+      JSON.stringify({
+        default: {
+          requests: { hashes: ['sha256:abc'], version: '==2.31.0' },
+        },
+      }),
+    )
+    const result = discoverPackages(path.join(rootDir, 'requirements.txt'), [])
+    expect(result).toEqual([{ name: 'flask', version: '3.0.0' }])
+  })
+
+  it('still bypasses requirements.txt, Poetry, and Pipenv parsing when explicit packages are given', () => {
+    write('poetry.lock', '[[package]]\nname = "flask"\nversion = "3.0.0"\n')
+    write('pyproject.toml', '[tool.poetry.dependencies]\npython = "^3.10"\n')
+    write('Pipfile.lock', JSON.stringify({ default: { requests: { version: '==2.31.0' } } }))
+    const result = discoverPackages(path.join(rootDir, 'requirements.txt'), ['django'])
+    expect(result).toEqual([{ name: 'django', version: null }])
+  })
 })
