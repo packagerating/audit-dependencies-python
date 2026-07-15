@@ -4,6 +4,7 @@ import { collectPoetryDependencyNames, resolvePoetryVersions } from './lockfiles
 import { parsePipfileLock } from './lockfiles/pipenv'
 import { collectUvDependencyNames, resolveUvVersions } from './lockfiles/uv'
 import { collectPdmDependencyNames, resolvePdmVersions } from './lockfiles/pdm'
+import { discoverSubprojects } from './subprojects'
 
 export interface DiscoveredPackage {
   name: string
@@ -72,15 +73,8 @@ function parseFile(filePath: string, seen: Set<string>): DiscoveredPackage[] {
   return results
 }
 
-export function discoverPackages(requirementsPath: string, explicitPackages: string[]): DiscoveredPackage[] {
-  if (explicitPackages.length > 0) {
-    return [...new Set(explicitPackages)].map(name => ({ name, version: null }))
-  }
-
-  const resolvedRequirementsPath = path.resolve(requirementsPath)
-  const dir = path.dirname(resolvedRequirementsPath)
+function resolveDirectory(dir: string, requirementsFileName: string): DiscoveredPackage[] {
   const poetryLockPath = path.join(dir, 'poetry.lock')
-
   if (fs.existsSync(poetryLockPath)) {
     const pyprojectPath = path.join(dir, 'pyproject.toml')
     const names = collectPoetryDependencyNames(fs.readFileSync(pyprojectPath, 'utf8'))
@@ -109,7 +103,31 @@ export function discoverPackages(requirementsPath: string, explicitPackages: str
     return names.map(name => ({ name, version: versions.get(name) ?? null }))
   }
 
-  const all = parseFile(requirementsPath, new Set())
+  return parseFile(path.join(dir, requirementsFileName), new Set())
+}
+
+export function discoverPackages(
+  requirementsPath: string,
+  explicitPackages: string[],
+  auditSubprojects: boolean,
+  subprojectMaxDepth: number,
+  subprojectExcludeGlobs: string[],
+): DiscoveredPackage[] {
+  if (explicitPackages.length > 0) {
+    return [...new Set(explicitPackages)].map(name => ({ name, version: null }))
+  }
+
+  const resolvedRequirementsPath = path.resolve(requirementsPath)
+  const rootDir = path.dirname(resolvedRequirementsPath)
+  const rootRequirementsFileName = path.basename(resolvedRequirementsPath)
+
+  const all: DiscoveredPackage[] = [...resolveDirectory(rootDir, rootRequirementsFileName)]
+
+  if (auditSubprojects) {
+    for (const subprojectDir of discoverSubprojects(rootDir, subprojectMaxDepth, subprojectExcludeGlobs)) {
+      all.push(...resolveDirectory(path.join(rootDir, subprojectDir), 'requirements.txt'))
+    }
+  }
 
   const byName = new Map<string, DiscoveredPackage>()
   for (const pkg of all) byName.set(pkg.name, pkg)
