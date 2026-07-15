@@ -83,6 +83,12 @@ Use `subproject-exclude` to add further comma-separated glob patterns on top, an
 Set `audit-subprojects: false` to disable this discovery entirely and only audit the configured
 `requirements-path` root.
 
+If the root and a subproject depend on genuinely different versions of the same package, only one
+version is scored — the combined package list is deduplicated by name only, last-resolved wins
+(subprojects are resolved after the root). This differs from per-source version tracking; if your
+subprojects intentionally pin different versions of a shared dependency, be aware only one of those
+versions will appear in the report.
+
 ## Out of scope
 
 - **Per-subproject attribution in the report** — the report doesn't indicate which subproject (or
