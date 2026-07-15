@@ -86,6 +86,9 @@ describe('run() integration', () => {
       'api-key': 'test-key',
       'requirements-path': 'requirements.txt',
       packages: '',
+      'audit-subprojects': 'true',
+      'subproject-max-depth': '3',
+      'subproject-exclude': '',
       'fail-on-general': '',
       'fail-on-automation': '',
       'fail-on-risk': '',
@@ -112,7 +115,7 @@ describe('run() integration', () => {
 
     await runWithInputs({ packages: 'flask,django' })
 
-    expect(discoverPackagesMock).toHaveBeenCalledWith('requirements.txt', ['flask', 'django'])
+    expect(discoverPackagesMock).toHaveBeenCalledWith('requirements.txt', ['flask', 'django'], true, 3, [])
     expect(scorePackagesMock).toHaveBeenCalled()
   })
 
@@ -120,6 +123,46 @@ describe('run() integration', () => {
     await runWithInputs({ 'requirements-path': 'reqs/prod.txt' })
     const args = discoverPackagesMock.mock.calls[0]!
     expect(args[0]).toBe('reqs/prod.txt')
+  })
+
+  it('passes auditSubprojects=true to discoverPackages by default', async () => {
+    await runWithInputs({})
+    const args = discoverPackagesMock.mock.calls[0]!
+    expect(args[2]).toBe(true)
+  })
+
+  it('passes auditSubprojects=false to discoverPackages when audit-subprojects input is "false"', async () => {
+    await runWithInputs({ 'audit-subprojects': 'false' })
+    const args = discoverPackagesMock.mock.calls[0]!
+    expect(args[2]).toBe(false)
+  })
+
+  it('passes subprojectMaxDepth=3 to discoverPackages by default', async () => {
+    await runWithInputs({})
+    const args = discoverPackagesMock.mock.calls[0]!
+    expect(args[3]).toBe(3)
+  })
+
+  it('passes a custom subprojectMaxDepth to discoverPackages when subproject-max-depth is set', async () => {
+    await runWithInputs({ 'subproject-max-depth': '5' })
+    const args = discoverPackagesMock.mock.calls[0]!
+    expect(args[3]).toBe(5)
+  })
+
+  it('throws a clear error when subproject-max-depth is not a valid non-negative integer', async () => {
+    await expect(runWithInputs({ 'subproject-max-depth': 'abc' })).rejects.toThrow(/Invalid subproject-max-depth/)
+  })
+
+  it('passes an empty subprojectExcludeGlobs array to discoverPackages by default', async () => {
+    await runWithInputs({})
+    const args = discoverPackagesMock.mock.calls[0]!
+    expect(args[4]).toEqual([])
+  })
+
+  it('parses subproject-exclude into a trimmed array of globs', async () => {
+    await runWithInputs({ 'subproject-exclude': 'scratch/**, tmp/** ' })
+    const args = discoverPackagesMock.mock.calls[0]!
+    expect(args[4]).toEqual(['scratch/**', 'tmp/**'])
   })
 
   it('reads the github-token input and passes it through to upsertPrComment', async () => {
