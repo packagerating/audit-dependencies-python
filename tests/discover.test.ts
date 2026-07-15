@@ -122,6 +122,20 @@ describe('discoverPackages', () => {
     expect(() => discoverPackages(path.join(rootDir, 'requirements.txt'), [], false, 3, [])).toThrow()
   })
 
+  it('does not throw when a subproject has only a config-only pyproject.toml with no lockfile and no requirements.txt', () => {
+    write('requirements.txt', 'requests==2.31.0\n')
+    write('service-a/pyproject.toml', '[tool.ruff]\nline-length = 100\n')
+    const result = discoverPackages(path.join(rootDir, 'requirements.txt'), [], true, 3, [])
+    expect(result).toEqual([{ name: 'requests', version: '2.31.0' }])
+  })
+
+  it('when root and a subproject resolve different versions of the same package, the subproject (resolved later) wins — documented last-write-wins behavior', () => {
+    write('requirements.txt', 'flask==2.0.0\n')
+    write('service-a/requirements.txt', 'flask==3.0.0\n')
+    const result = discoverPackages(path.join(rootDir, 'requirements.txt'), [], true, 3, [])
+    expect(result).toEqual([{ name: 'flask', version: '3.0.0' }])
+  })
+
   it('uses Poetry mode when poetry.lock exists, ignoring requirements.txt entirely', () => {
     write('requirements.txt', 'this-should-be-ignored==9.9.9\n')
     write(

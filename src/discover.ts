@@ -73,7 +73,7 @@ function parseFile(filePath: string, seen: Set<string>): DiscoveredPackage[] {
   return results
 }
 
-function resolveDirectory(dir: string, requirementsFileName: string): DiscoveredPackage[] {
+function resolveDirectory(dir: string, requirementsFileName: string, allowMissingRequirements: boolean): DiscoveredPackage[] {
   const poetryLockPath = path.join(dir, 'poetry.lock')
   if (fs.existsSync(poetryLockPath)) {
     const pyprojectPath = path.join(dir, 'pyproject.toml')
@@ -103,7 +103,11 @@ function resolveDirectory(dir: string, requirementsFileName: string): Discovered
     return names.map(name => ({ name, version: versions.get(name) ?? null }))
   }
 
-  return parseFile(path.join(dir, requirementsFileName), new Set())
+  const requirementsFilePath = path.join(dir, requirementsFileName)
+  if (allowMissingRequirements && !fs.existsSync(requirementsFilePath)) {
+    return []
+  }
+  return parseFile(requirementsFilePath, new Set())
 }
 
 export function discoverPackages(
@@ -121,11 +125,11 @@ export function discoverPackages(
   const rootDir = path.dirname(resolvedRequirementsPath)
   const rootRequirementsFileName = path.basename(resolvedRequirementsPath)
 
-  const all: DiscoveredPackage[] = [...resolveDirectory(rootDir, rootRequirementsFileName)]
+  const all: DiscoveredPackage[] = [...resolveDirectory(rootDir, rootRequirementsFileName, false)]
 
   if (auditSubprojects) {
     for (const subprojectDir of discoverSubprojects(rootDir, subprojectMaxDepth, subprojectExcludeGlobs)) {
-      all.push(...resolveDirectory(path.join(rootDir, subprojectDir), 'requirements.txt'))
+      all.push(...resolveDirectory(path.join(rootDir, subprojectDir), 'requirements.txt', true))
     }
   }
 
