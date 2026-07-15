@@ -43,9 +43,17 @@ export async function run(): Promise<void> {
     .map(s => s.trim())
     .filter(Boolean)
 
+  const subprojectExcludeGlobs = core.getInput('subproject-exclude')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+
   const packages = discoverPackages(
     core.getInput('requirements-path') || 'requirements.txt',
     explicitPackages,
+    core.getInput('audit-subprojects') !== 'false',
+    parseInt(core.getInput('subproject-max-depth') || '3', 10),
+    subprojectExcludeGlobs,
   )
 
   core.info(`Scoring ${packages.length} package(s)...`)
