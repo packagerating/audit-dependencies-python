@@ -11,6 +11,13 @@ function parseThreshold(value: string): number | null {
   return n
 }
 
+function parseSubprojectMaxDepth(value: string): number {
+  if (!value.trim()) return 3
+  const n = parseInt(value, 10)
+  if (isNaN(n) || n < 0) throw new Error(`Invalid subproject-max-depth: "${value}" — must be a non-negative integer`)
+  return n
+}
+
 export function checkThresholds(scores: PackageScore[], thresholds: Thresholds): string[] {
   const failures: string[] = []
   for (const pkg of scores.filter(s => s.status === 'scored')) {
@@ -52,7 +59,7 @@ export async function run(): Promise<void> {
     core.getInput('requirements-path') || 'requirements.txt',
     explicitPackages,
     core.getInput('audit-subprojects') !== 'false',
-    parseInt(core.getInput('subproject-max-depth') || '3', 10),
+    parseSubprojectMaxDepth(core.getInput('subproject-max-depth')),
     subprojectExcludeGlobs,
   )
 
