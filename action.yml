@@ -14,6 +14,18 @@ inputs:
     description: 'Explicit comma-separated package list (overrides requirements.txt discovery)'
     required: false
     default: ''
+  audit-subprojects:
+    description: 'Discover and score independent Python projects in subdirectories (each with their own requirements.txt, pyproject.toml, or Pipfile, and their own lockfile). Set to false to disable.'
+    required: false
+    default: 'true'
+  subproject-max-depth:
+    description: 'Maximum directory depth (below repo root) to scan for independent Python project roots'
+    required: false
+    default: '3'
+  subproject-exclude:
+    description: 'Comma-separated additional glob patterns to exclude from subproject discovery (node_modules, .git, dist, build, coverage, vendor, venv, .venv, __pycache__, .tox, *.egg-info, site-packages, examples, fixtures, test, tests, __tests__, and e2e are always excluded regardless of this input)'
+    required: false
+    default: ''
   fail-on-general:
     description: 'Fail if any package general_score is below this threshold (0–100)'
     required: false
