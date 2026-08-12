@@ -51,6 +51,30 @@ jobs:
 | `packages-scored` | Number of packages successfully scored |
 | `packages-below-threshold` | Comma-separated list of packages that failed at least one threshold |
 
+## Scores
+
+General and Automation: higher is better.
+
+| Range | Interpretation |
+|---|---|
+| 90–100 | Excellent — safe to adopt or auto-update |
+| 70–89 | Good — actively maintained |
+| 50–69 | Fair — some maintenance concerns |
+| 25–49 | Poor — significant concerns |
+| 0–24 | Critical — abandoned or insecure |
+
+Risk: inverted — lower is better.
+
+| Range | Interpretation |
+|---|---|
+| 0–10 | Minimal risk — actively maintained and secure |
+| 11–30 | Low risk — minor concerns |
+| 31–50 | Moderate risk — some maintenance or security signals |
+| 51–75 | High risk — significant maintenance or security concerns |
+| 76–100 | Critical risk — abandoned or insecure |
+
+Full score methodology: [packagerating.com/github-action](https://packagerating.com/github-action)
+
 ## Version resolution
 
 Only an exact `==X.Y.Z` pin in `requirements.txt` yields a resolved version — a package pinned
