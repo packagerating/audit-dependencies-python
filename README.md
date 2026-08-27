@@ -1,5 +1,9 @@
 # audit-dependencies-python
 
+[![GitHub Marketplace](https://img.shields.io/badge/marketplace-Audit%20Python%20Dependencies-blue?logo=github)](https://github.com/marketplace/actions/audit-python-dependencies)
+[![Release](https://img.shields.io/github/v/release/packagerating/audit-dependencies-python)](https://github.com/packagerating/audit-dependencies-python/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 Score your Python dependencies with [packagerating.com](https://packagerating.com) in your GitHub
 Actions workflow. Resolves each package's exact pinned version from `requirements.txt` (when
 pinned with `==`) and scores it — not "latest" — so results reflect what your project actually
