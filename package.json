@@ -1,6 +1,6 @@
 {
   "name": "audit-dependencies-python",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "private": true,
   "license": "MIT",
   "description": "Score your Python dependencies with packagerating.com",
