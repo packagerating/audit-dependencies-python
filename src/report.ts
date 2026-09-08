@@ -13,11 +13,20 @@ function scoreCell(value: number | null, threshold: number | null, direction: 'h
   return passes ? `${rounded} ✅` : `${rounded} ⚠️`
 }
 
+// encodeURIComponent alone is not sufficient here: it deliberately leaves `!'()*` unescaped
+// (per the JS spec), and `(`/`)` are markdown-active in a link destination — an unescaped `)`
+// in a crafted package name (this repo's requirements.txt name regex is permissive, unlike an
+// npm-registry name) would truncate the link early and spill attacker text into the rendered PR
+// comment. Percent-encode the parens explicitly on top of encodeURIComponent's normal escaping.
+function packageUrlSlug(name: string): string {
+  return encodeURIComponent(name).replace(/\(/g, '%28').replace(/\)/g, '%29')
+}
+
 function noteCell(pkg: PackageScore, thresholds: Thresholds): string {
   if (pkg.status === 'unscored') return 'Crawl timed out'
   if (pkg.status === 'crawl-error') return 'Crawl error'
   if (isBelowThreshold(pkg, thresholds)) {
-    return `[Below threshold — see why →](https://packagerating.com/packages/${pkg.name})`
+    return `[Below threshold — see why →](https://packagerating.com/packages/${packageUrlSlug(pkg.name)})`
   }
   return ''
 }

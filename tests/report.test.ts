@@ -84,11 +84,46 @@ describe('buildMarkdownTable', () => {
 
   it('prioritizes the crawl-timed-out note over the below-threshold link', () => {
     const scores: PackageScore[] = [
-      { name: 'timed-out-pkg', version: null, generalScore: null, automationScore: null, riskScore: null, status: 'unscored' },
+      // generalScore is non-null and would fail the configured general threshold (10 < 50) if
+      // isBelowThreshold were checked — so this only passes if the 'unscored' branch genuinely
+      // runs first, not merely because isBelowThreshold happens to return false.
+      { name: 'timed-out-pkg', version: null, generalScore: 10, automationScore: null, riskScore: null, status: 'unscored' },
     ]
     const table = buildMarkdownTable(scores, { general: 50, automation: null, risk: null })
     expect(table).toContain('Crawl timed out')
     expect(table).not.toContain('Below threshold')
+  })
+
+  it('prioritizes the crawl-error note over the below-threshold link', () => {
+    const scores: PackageScore[] = [
+      // Same fixture-strengthening as the unscored case above: non-null generalScore that would
+      // fail the configured threshold, so the test only passes if 'crawl-error' is checked first.
+      { name: 'broken-pkg', version: null, generalScore: 10, automationScore: null, riskScore: null, status: 'crawl-error' },
+    ]
+    const table = buildMarkdownTable(scores, { general: 50, automation: null, risk: null })
+    expect(table).toContain('Crawl error')
+    expect(table).not.toContain('Below threshold')
+  })
+
+  it('percent-encodes parens in the package name so the link destination is not truncated', () => {
+    const scores: PackageScore[] = [
+      { name: 'evil) https://phish.example (', version: '1.0.0', generalScore: 30, automationScore: 80, riskScore: 20, status: 'scored' },
+    ]
+    const table = buildMarkdownTable(scores, { general: 50, automation: null, risk: null })
+    expect(table).toContain(
+      '[Below threshold — see why →](https://packagerating.com/packages/evil%29%20https%3A%2F%2Fphish.example%20%28)',
+    )
+    expect(table).not.toContain('](https://packagerating.com/packages/evil)')
+  })
+
+  it('renders an ordinary name containing parens safely', () => {
+    const scores: PackageScore[] = [
+      { name: 'foo(bar)', version: '1.0.0', generalScore: 30, automationScore: 80, riskScore: 20, status: 'scored' },
+    ]
+    const table = buildMarkdownTable(scores, { general: 50, automation: null, risk: null })
+    expect(table).toContain(
+      '[Below threshold — see why →](https://packagerating.com/packages/foo%28bar%29)',
+    )
   })
 })
 
@@ -97,6 +132,13 @@ describe('isBelowThreshold', () => {
     expect(isBelowThreshold(
       { name: 'p', version: '1.0.0', generalScore: 40, automationScore: null, riskScore: null, status: 'scored' },
       { general: 50, automation: null, risk: null },
+    )).toBe(true)
+  })
+
+  it('returns true when automationScore is below the automation threshold', () => {
+    expect(isBelowThreshold(
+      { name: 'p', version: '1.0.0', generalScore: null, automationScore: 40, riskScore: null, status: 'scored' },
+      { general: null, automation: 50, risk: null },
     )).toBe(true)
   })
 
