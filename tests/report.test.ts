@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import * as core from '@actions/core'
 import * as github from '@actions/github'
 import { buildMarkdownTable, writeJobSummary, upsertPrComment } from '../src/report'
+import { isBelowThreshold } from '../src/index'
 import type { PackageScore, Thresholds } from '../src/types'
 
 function scored(name: string, generalScore: number, automationScore: number, riskScore: number, version = '1.0.0'): PackageScore {
@@ -55,6 +56,111 @@ describe('buildMarkdownTable', () => {
     ]
     const table = buildMarkdownTable(scores, noThresholds)
     expect(table).toContain('Crawl error')
+  })
+
+  it('shows the below-threshold link for a scored package that fails a configured threshold', () => {
+    const scores: PackageScore[] = [
+      { name: 'risky-pkg', version: '1.0.0', generalScore: 30, automationScore: 80, riskScore: 20, status: 'scored' },
+    ]
+    const table = buildMarkdownTable(scores, { general: 50, automation: null, risk: null })
+    expect(table).toContain('[Below threshold — see why →](https://packagerating.com/packages/risky-pkg)')
+  })
+
+  it('shows no link for a scored package that passes every configured threshold', () => {
+    const scores: PackageScore[] = [
+      { name: 'good-pkg', version: '1.0.0', generalScore: 90, automationScore: 90, riskScore: 10, status: 'scored' },
+    ]
+    const table = buildMarkdownTable(scores, { general: 50, automation: 50, risk: 50 })
+    expect(table).not.toContain('Below threshold')
+  })
+
+  it('shows no link when no threshold is configured at all', () => {
+    const scores: PackageScore[] = [
+      { name: 'low-pkg', version: '1.0.0', generalScore: 5, automationScore: 5, riskScore: 95, status: 'scored' },
+    ]
+    const table = buildMarkdownTable(scores, noThresholds)
+    expect(table).not.toContain('Below threshold')
+  })
+
+  it('prioritizes the crawl-timed-out note over the below-threshold link', () => {
+    const scores: PackageScore[] = [
+      // generalScore is non-null and would fail the configured general threshold (10 < 50) if
+      // isBelowThreshold were checked — so this only passes if the 'unscored' branch genuinely
+      // runs first, not merely because isBelowThreshold happens to return false.
+      { name: 'timed-out-pkg', version: null, generalScore: 10, automationScore: null, riskScore: null, status: 'unscored' },
+    ]
+    const table = buildMarkdownTable(scores, { general: 50, automation: null, risk: null })
+    expect(table).toContain('Crawl timed out')
+    expect(table).not.toContain('Below threshold')
+  })
+
+  it('prioritizes the crawl-error note over the below-threshold link', () => {
+    const scores: PackageScore[] = [
+      // Same fixture-strengthening as the unscored case above: non-null generalScore that would
+      // fail the configured threshold, so the test only passes if 'crawl-error' is checked first.
+      { name: 'broken-pkg', version: null, generalScore: 10, automationScore: null, riskScore: null, status: 'crawl-error' },
+    ]
+    const table = buildMarkdownTable(scores, { general: 50, automation: null, risk: null })
+    expect(table).toContain('Crawl error')
+    expect(table).not.toContain('Below threshold')
+  })
+
+  it('percent-encodes parens in the package name so the link destination is not truncated', () => {
+    const scores: PackageScore[] = [
+      { name: 'evil) https://phish.example (', version: '1.0.0', generalScore: 30, automationScore: 80, riskScore: 20, status: 'scored' },
+    ]
+    const table = buildMarkdownTable(scores, { general: 50, automation: null, risk: null })
+    expect(table).toContain(
+      '[Below threshold — see why →](https://packagerating.com/packages/evil%29%20https%3A%2F%2Fphish.example%20%28)',
+    )
+    expect(table).not.toContain('](https://packagerating.com/packages/evil)')
+  })
+
+  it('renders an ordinary name containing parens safely', () => {
+    const scores: PackageScore[] = [
+      { name: 'foo(bar)', version: '1.0.0', generalScore: 30, automationScore: 80, riskScore: 20, status: 'scored' },
+    ]
+    const table = buildMarkdownTable(scores, { general: 50, automation: null, risk: null })
+    expect(table).toContain(
+      '[Below threshold — see why →](https://packagerating.com/packages/foo%28bar%29)',
+    )
+  })
+})
+
+describe('isBelowThreshold', () => {
+  it('returns true when generalScore is below the general threshold', () => {
+    expect(isBelowThreshold(
+      { name: 'p', version: '1.0.0', generalScore: 40, automationScore: null, riskScore: null, status: 'scored' },
+      { general: 50, automation: null, risk: null },
+    )).toBe(true)
+  })
+
+  it('returns true when automationScore is below the automation threshold', () => {
+    expect(isBelowThreshold(
+      { name: 'p', version: '1.0.0', generalScore: null, automationScore: 40, riskScore: null, status: 'scored' },
+      { general: null, automation: 50, risk: null },
+    )).toBe(true)
+  })
+
+  it('returns true when riskScore is above the risk threshold', () => {
+    expect(isBelowThreshold(
+      { name: 'p', version: '1.0.0', generalScore: null, automationScore: null, riskScore: 80, status: 'scored' },
+      { general: null, automation: null, risk: 50 },
+    )).toBe(true)
+  })
+
+  it('returns false when no threshold is configured', () => {
+    expect(isBelowThreshold(
+      { name: 'p', version: '1.0.0', generalScore: 1, automationScore: 1, riskScore: 99, status: 'scored' },
+      { general: null, automation: null, risk: null },
+    )).toBe(false)
+  })
+
+  it('returns false when all configured thresholds pass', () => {
+    expect(isBelowThreshold(
+      { name: 'p', version: '1.0.0', generalScore: 90, automationScore: 90, riskScore: 10, status: 'scored' },
+      { general: 50, automation: 50, risk: 50 },
+    )).toBe(false)
   })
 })
 
